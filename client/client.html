@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <title>Media review tracker</title>
+
+  <!-- Bootstrap & FontAwesome CSS -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.2.0/css/all.css" integrity="sha384-hWVjflwFxL6sNzntih27bfxkr27PmbbK/iSvJ+a4+0owXq79v+lsFkW54bOGbiDQ" crossorigin="anonymous">
+
+  <link rel="stylesheet" type="text/css" href="/style.css">
+
+  <!-- Bootstrap JS -->
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.34/browser.min.js"></script>
+  <script type="text/babel">
+    const handleResponse = (xhr, method) => {
+      const type = xhr.getResponseHeader('content-type');
+      const feed = document.querySelector('#feed');
+
+      if(method === 'head') {
+        console.log(`HEAD: ${xhr.statusText}`);
+        //h1.textContent = xhr.statusText;
+      } else {
+        if(xhr.response) {
+          const obj = JSON.parse(xhr.response);
+          console.dir(obj);
+
+          if(xhr.status > 200) {
+            console.log('Status: ' + xhr.status)
+            //h1.textContent = `${obj.id}`;
+            //p.textContent = `Message: ${obj.message}`;
+          } else {
+            console.log(`Found ${Object.keys(obj.media).length} items`);
+
+            feed.innerHTML = '';
+
+            Object.keys(obj.media).forEach((key) => {
+              const li = document.createElement('li');
+              li.setAttribute('class', 'list-group-item');
+
+              const likedIcon = (obj.media[key].liked === 'true' ?
+                '<i class="far fa-thumbs-up"></i>' :
+                '<i class="far fa-thumbs-down"></i>'
+              );
+
+              const mediaTypeIcon = (obj.media[key].type === 'movie' ?
+                '<i class="fas fa-film"></i>' :
+                '<i class="fas fa-book"></i>'
+              );
+
+              li.innerHTML = `${likedIcon}: ${mediaTypeIcon} <i>${obj.media[key].title}</i> by ${obj.media[key].by} <small>(Reviewed ${new Date(parseInt(key)).toDateString()})</small>`;
+
+              feed.prepend(li);
+            });
+          }
+        } else {
+          console.log('No response');
+          //h1.textContent = xhr.statusText;
+        }
+      }
+    };
+
+    const getAjax = (e) => {
+      const url = '/getFeed';
+      const method = 'GET';
+
+      const xhr = new XMLHttpRequest();
+      xhr.open(method, url);
+      xhr.setRequestHeader ('Accept', 'application/json');
+      xhr.onload = () => handleResponse(xhr, method);
+      xhr.send();
+
+      if(e) e.preventDefault();
+      return false;
+    };
+
+    const postAjax = (e) => {
+      const url = document.querySelector('#addMediaForm').getAttribute('action');
+      const method = document.querySelector('#addMediaForm').getAttribute('method');
+
+      const xhr = new XMLHttpRequest();
+      xhr.open(method, url);
+      xhr.setRequestHeader ('Accept', 'application/json');
+      xhr.onload = () => handleResponse(xhr, method);
+
+      const mediaType = document.querySelector('input[name="mediaType"]:checked').value;
+      const title = document.querySelector('#titleField').value;
+      const by = document.querySelector('#byField').value;
+      const liked = document.querySelector('input[name="liked"]:checked').value;
+
+      const formData = `mediaType=${mediaType}&title=${title}&by=${by}&liked=${liked}`;
+      xhr.send(formData);
+
+      $('#addMediaModal').modal('hide');
+      getAjax(false);
+
+      e.preventDefault();
+      return false;
+    };
+
+    const init = () => {
+      const refreshButton = document.querySelector('#refreshButton');
+      refreshButton.addEventListener('click', (e) => getAjax(e));
+
+      const postForm = document.querySelector('#addMediaForm');
+      postForm.addEventListener('submit', (e) => postAjax(e));
+
+      getAjax(false);
+    };
+
+    window.onload = init;
+  </script>
+</head>
+<body>
+  <!-- Modal open button -->
+  <button type="button" id="addMediaButton" class="btn btn-primary btn-lg" data-toggle="modal" data-target="#addMediaModal">
+    <i class="fas fa-plus"></i><span id="addDescription"> Add Review</span>
+  </button>
+
+  <!-- Modal -->
+  <div class="modal fade" id="addMediaModal" tabindex="-1" role="dialog">
+    <form id="addMediaForm" action="/addReview" method="post">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Add Media</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                <label class="btn btn-primary active">
+                  <input type="radio" name="mediaType" id="mediaTypeBook" autocomplete="off" value="book" checked>Book</input>
+                </label>
+                <label class="btn btn-primary">
+                  <input type="radio" name="mediaType" id="mediaTypeMovie" autocomplete="off" value="movie">Movie/Film</input>
+                </label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="titleField">Name</label>
+              <input class="form-control" id="titleField" type="text" name="title" />
+            </div>
+            <div class="form-group">
+              <label for="byField">Author/Producer</label>
+              <input class="form-control" id="byField" type="text" name="by" />
+            </div>
+            <div class="form-group">
+              <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                <label class="btn btn-primary active">
+                  <input type="radio" name="liked" id="likedTrue" autocomplete="off" value="true" checked><i class="far fa-thumbs-up fa-5x"></i></input>
+                </label>
+                <label class="btn btn-primary">
+                  <input type="radio" name="liked" id="likedFalse" autocomplete="off" value="false"><i class="far fa-thumbs-down fa-5x"></i></input>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            <button type="submit" class="btn btn-primary">Save changes</button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div id="main" class="container">
+    <h1>Review Feed <i class="fas fa-sync" id="refreshButton"></i></h1>
+    <hr />
+    <ul class="list-group" id="feed">
+      <li class="list-group-item">Loading...</li>
+    </ul>
+  </div>
+</body>
+</html>

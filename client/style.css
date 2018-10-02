@@ -1,0 +1,23 @@
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#main {
+  margin-top: 50px;
+}
+
+#addMediaButton {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+}
+
+#addDescription {
+  display: none;
+}
+#addMediaButton:hover #addDescription {
+  display: initial;
+}
