@@ -1,0 +1,30 @@
+{
+  "name": "430-project1",
+  "version": "1.0.0",
+  "engine": {
+    "node": "10.11.x",
+    "npm": "6.4.x"
+  },
+  "description": "IGME 430 Assignment",
+  "main": "src/server.js",
+  "scripts": {
+    "pretest": "eslint ./ --fix",
+    "start": "node ./src/server.js",
+    "test": "echo \"Tests complete\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ct-martin/http-api-assignment-ii.git"
+  },
+  "author": "CTMartin",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ct-martin/http-api-assignment-ii/issues"
+  },
+  "homepage": "https://github.com/ct-martin/http-api-assignment-ii#readme",
+  "devDependencies": {
+    "eslint": "^5.6.1",
+    "eslint-config-airbnb": "^17.1.0",
+    "eslint-plugin-import": "^2.14.0"
+  }
+}
