@@ -9,11 +9,13 @@ const urlStruct = {
   404: responseStaticHandler.get404,
   '/': responseStaticHandler.getIndex,
   '/style.css': responseStaticHandler.getStyle,
-  '/getFeed': responseDataHandler.getMedia,
+  '/getMedia': responseDataHandler.getMedia,
   '/addReview': responseDataHandler.addMedia,
+  '/getFeed': responseDataHandler.getFeed,
 };
 
 const onRequest = (request, response) => {
+  // Send request to correct handler, or 404 if none
   const parsedUrl = url.parse(request.url);
 
   if (urlStruct[parsedUrl.pathname]) {

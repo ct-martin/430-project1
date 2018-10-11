@@ -19,101 +19,251 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.34/browser.min.js"></script>
   <script type="text/babel">
+    let apiData = {};
+
+    // Takes data from API calls and updates feed as applicable
     const handleResponse = (xhr, method) => {
       const type = xhr.getResponseHeader('content-type');
-      const feed = document.querySelector('#feed');
 
+      // If HEAD log and do nothing
       if(method === 'head') {
         console.log(`HEAD: ${xhr.statusText}`);
-        //h1.textContent = xhr.statusText;
       } else {
+        // Check if call returned data
         if(xhr.response) {
           const obj = JSON.parse(xhr.response);
           console.dir(obj);
 
           if(xhr.status > 200) {
+            // Log
             console.log('Status: ' + xhr.status)
-            //h1.textContent = `${obj.id}`;
-            //p.textContent = `Message: ${obj.message}`;
           } else {
+            // If reached here, we have data to add to the feed
             console.log(`Found ${Object.keys(obj.media).length} items`);
 
-            feed.innerHTML = '';
-
+            // Add data to storage object
             Object.keys(obj.media).forEach((key) => {
-              const li = document.createElement('li');
-              li.setAttribute('class', 'list-group-item');
-
-              const likedIcon = (obj.media[key].liked === 'true' ?
-                '<i class="far fa-thumbs-up"></i>' :
-                '<i class="far fa-thumbs-down"></i>'
-              );
-
-              const mediaTypeIcon = (obj.media[key].type === 'movie' ?
-                '<i class="fas fa-film"></i>' :
-                '<i class="fas fa-book"></i>'
-              );
-
-              li.innerHTML = `${likedIcon}: ${mediaTypeIcon} <i>${obj.media[key].title}</i> by ${obj.media[key].by} <small>(Reviewed ${new Date(parseInt(key)).toDateString()})</small>`;
-
-              feed.prepend(li);
+              apiData[key] = obj.media[key];
             });
+
+            // Rebuild feed
+            rebuildFeed();
           }
         } else {
           console.log('No response');
-          //h1.textContent = xhr.statusText;
         }
       }
     };
 
-    const getAjax = (e) => {
-      const url = '/getFeed';
+    // Rebuilds feed from scratch
+    const rebuildFeed = () => {
+      // Wipes out existing feed for safety
+      document.querySelector('#feed').innerHTML = '';
+
+      // Add events to feed
+      Object.keys(apiData).forEach((key) => {
+        addToFeed(
+          apiData[key].liked === 'true',
+          apiData[key].type === 'movie',
+          decodeURIComponent(apiData[key].title),
+          decodeURIComponent(apiData[key].by),
+          key
+        );
+      })
+    }
+
+    // Adds event to top of feed
+    const addToFeed = (liked, isMovie, title, by, ts) => {
+      // HTML setup
+      const feed = document.querySelector('#feed');
+      const li = document.createElement('li');
+      li.setAttribute('class', 'list-group-item');
+
+      // Generate thumbs up/down & media type icons
+      const likedIcon = (liked ?
+        '<i class="far fa-thumbs-up"></i>' :
+        '<i class="far fa-thumbs-down"></i>'
+      );
+      const mediaTypeIcon = (isMovie ?
+        '<i class="fas fa-film"></i>' :
+        '<i class="fas fa-book"></i>'
+      );
+
+      // Formats to HTML
+      li.innerHTML = `${likedIcon}: ${mediaTypeIcon} <i>${title}</i> by ${by} <small>(Reviewed ${new Date(parseInt(ts)).toDateString()})</small> `;
+
+      // Edit button. Done after b/c needs event listener and Babel acts effectively as an IIFE
+      const editIcon = document.createElement('i');
+      editIcon.setAttribute('class', 'fas fa-edit');
+      editIcon.addEventListener('click', () => {editReviewModal(ts)});
+      li.appendChild(editIcon);
+
+      // Add to feed
+      feed.prepend(li);
+    };
+
+    // Does GET call to server for API
+    // ts = timestamp of event to update for the "one" filter on server
+    const getAjax = (e, ts = false) => {
+      let url = '/getMedia';
       const method = 'GET';
 
+      // If getting info for a specific event (event stream, edit), minimize requests
+      if(ts) {
+        url = `${url}?filter=one&i=${ts}`;
+      }
+
+      // Send GET to server
       const xhr = new XMLHttpRequest();
       xhr.open(method, url);
       xhr.setRequestHeader ('Accept', 'application/json');
       xhr.onload = () => handleResponse(xhr, method);
       xhr.send();
 
+      // Prevent form default "submit" behavior as applicable
       if(e) e.preventDefault();
       return false;
     };
 
-    const postAjax = (e) => {
+    const addReview = (e) => {
+      // Get API info from form
       const url = document.querySelector('#addMediaForm').getAttribute('action');
       const method = document.querySelector('#addMediaForm').getAttribute('method');
 
+      // Grab data from form fields
+      const mediaType = document.querySelector('input[name="mediaType"]:checked').value;
+      const title = encodeURIComponent(document.querySelector('#titleField').value);
+      const by = encodeURIComponent(document.querySelector('#byField').value);
+      const liked = document.querySelector('input[name="liked"]:checked').value;
+
+      // Format data
+      const formData = `mediaType=${mediaType}&title=${title}&by=${by}&liked=${liked}`;
+
+      // Hide modal & POST to server
+      $('#addMediaModal').modal('hide');
+      postAjax(url, method, formData);
+
+      // Stop form's default submit behavior
+      e.preventDefault();
+      return false;
+    }
+
+    // Puts info into edit form & brings up
+    const editReviewModal = (id) => {
+      // Safety check for bad users
+      if(!apiData[id]) {
+        console.log('Cannot edit unknown ID: ' + id);
+        return false;
+      }
+
+      // Update text & number fields
+      document.querySelector('#titleField2').value = decodeURIComponent(apiData[id].title);
+      document.querySelector('#byField2').value = decodeURIComponent(apiData[id].by);
+      document.querySelector('#timestamp').value = id;
+
+      // Updating radio buttons are a nightmare, and Bootstrap does funny things
+      // with the class to style
+      // I opted not to deconstruct the next chunk since it only happens once overall and the individual IDs don't scale well
+
+      // Update thumbs up/down buttons
+      document.querySelectorAll('input[name="liked2"]').forEach((item) => {
+        item.checked = false;
+        item.parentElement.classList.remove('active');
+      });
+      if(apiData[id].liked === 'true') {
+        document.querySelector('#likedTrue2').checked = true;
+        document.querySelector('#likedTrue2').parentElement.classList.add('active');
+      } else {
+        document.querySelector('#likedFalse2').checked = true;
+        document.querySelector('#likedFalse2').parentElement.classList.add('active');
+      }
+
+      // Update media type buttons
+      document.querySelectorAll('input[name="mediaType2"]').forEach((item) => {
+        item.checked = false;
+        item.parentElement.classList.remove('active');
+      });
+      if(apiData[id].type === 'movie') {
+        document.querySelector('#mediaTypeMovie2').checked = true;
+        document.querySelector('#mediaTypeMovie2').parentElement.classList.add('active');
+      } else {
+        document.querySelector('#mediaTypeBook2').checked = true;
+        document.querySelector('#mediaTypeBook2').parentElement.classList.add('active');
+      }
+
+      // Show form after data loaded
+      $('#editMediaModal').modal('show');
+    }
+
+    // Gets data from modal form & tells page to update
+    const editReview = (e) => {
+      // Get API info
+      const url = document.querySelector('#editMediaForm').getAttribute('action');
+      const method = document.querySelector('#editMediaForm').getAttribute('method');
+
+      // Get data to update
+      const mediaType = document.querySelector('input[name="mediaType2"]:checked').value;
+      const title = encodeURIComponent(document.querySelector('#titleField2').value);
+      const by = encodeURIComponent(document.querySelector('#byField2').value);
+      const liked = document.querySelector('input[name="liked2"]:checked').value;
+      const timestamp = document.querySelector('#timestamp').value;
+
+      // Format data
+      const formData = `mediaType=${mediaType}&title=${title}&by=${by}&liked=${liked}&timestamp=${timestamp}`;
+
+      // Hide modal, POST to server, update page after
+      $('#editMediaModal').modal('hide');
+      postAjax(url, method, formData);
+      getAjax(false, timestamp);
+
+      // Stop form's default submit behavior
+      e.preventDefault();
+      return false;
+    }
+
+    // Generic POST sender
+    // Return sends to handleResponse()
+    const postAjax = (url, method, formData) => {
       const xhr = new XMLHttpRequest();
       xhr.open(method, url);
       xhr.setRequestHeader ('Accept', 'application/json');
       xhr.onload = () => handleResponse(xhr, method);
 
-      const mediaType = document.querySelector('input[name="mediaType"]:checked').value;
-      const title = document.querySelector('#titleField').value;
-      const by = document.querySelector('#byField').value;
-      const liked = document.querySelector('input[name="liked"]:checked').value;
-
-      const formData = `mediaType=${mediaType}&title=${title}&by=${by}&liked=${liked}`;
       xhr.send(formData);
-
-      $('#addMediaModal').modal('hide');
-      getAjax(false);
-
-      e.preventDefault();
-      return false;
     };
 
+    // Opens event stream feed to server & tells getAjax
+    // to call the API for event details
+    const startFeed = () => {
+      const evtSource = new EventSource('/getFeed');
+
+      evtSource.onmessage = (e) => {
+        const obj = JSON.parse(e.data);
+
+        if(obj) {
+          obj.data.updates.forEach((ts) => {
+            getAjax(false, ts);
+          });
+        }
+      };
+    }
+
+    // Init for initial data grab & event listeners
     const init = () => {
-      const refreshButton = document.querySelector('#refreshButton');
-      refreshButton.addEventListener('click', (e) => getAjax(e));
+      //const refreshButton = document.querySelector('#refreshButton');
+      //refreshButton.addEventListener('click', (e) => getAjax(e));
+      startFeed();
 
       const postForm = document.querySelector('#addMediaForm');
-      postForm.addEventListener('submit', (e) => postAjax(e));
+      postForm.addEventListener('submit', (e) => addReview(e));
+
+      const postForm2 = document.querySelector('#editMediaForm');
+      postForm2.addEventListener('submit', (e) => editReview(e));
 
       getAjax(false);
     };
 
+    // Run init onload
     window.onload = init;
   </script>
 </head>
@@ -123,7 +273,7 @@
     <i class="fas fa-plus"></i><span id="addDescription"> Add Review</span>
   </button>
 
-  <!-- Modal -->
+  <!-- Add Modal -->
   <div class="modal fade" id="addMediaModal" tabindex="-1" role="dialog">
     <form id="addMediaForm" action="/addReview" method="post">
       <div class="modal-dialog modal-dialog-centered" role="document">
@@ -166,6 +316,57 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            <button type="submit" class="btn btn-primary">Add</button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal fade" id="editMediaModal" tabindex="-1" role="dialog">
+    <form id="editMediaForm" action="/addReview" method="post">
+      <input type="hidden" name="timestamp" id="timestamp" />
+      <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Edit</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                <label class="btn btn-primary">
+                  <input type="radio" name="mediaType2" id="mediaTypeBook2" autocomplete="off" value="book" checked>Book</input>
+                </label>
+                <label class="btn btn-primary">
+                  <input type="radio" name="mediaType2" id="mediaTypeMovie2" autocomplete="off" value="movie">Movie/Film</input>
+                </label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="titleField">Name</label>
+              <input class="form-control" id="titleField2" type="text" name="title2" />
+            </div>
+            <div class="form-group">
+              <label for="byField">Author/Producer</label>
+              <input class="form-control" id="byField2" type="text" name="by2" />
+            </div>
+            <div class="form-group">
+              <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                <label class="btn btn-primary">
+                  <input type="radio" name="liked2" id="likedTrue2" autocomplete="off" value="true" checked><i class="far fa-thumbs-up fa-5x"></i></input>
+                </label>
+                <label class="btn btn-primary">
+                  <input type="radio" name="liked2" id="likedFalse2" autocomplete="off" value="false"><i class="far fa-thumbs-down fa-5x"></i></input>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
             <button type="submit" class="btn btn-primary">Save changes</button>
           </div>
         </div>
@@ -174,7 +375,7 @@
   </div>
 
   <div id="main" class="container">
-    <h1>Review Feed <i class="fas fa-sync" id="refreshButton"></i></h1>
+    <h1>Review Feed<!-- <i class="fas fa-sync" id="refreshButton"></i>--></h1>
     <hr />
     <ul class="list-group" id="feed">
       <li class="list-group-item">Loading...</li>
